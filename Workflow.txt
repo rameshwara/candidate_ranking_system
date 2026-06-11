@@ -1,0 +1,63 @@
+Prepare dataset:
+
+1. Convert sample_candidates.json into following pandas dataframe and save each as csv file:
+
+- candidate profile table : candidate id, name, headline, summary, location, country, years_of_exp, current_title, current_company, current_company_size, current_industry
+- candidate career history table (one row per each experience) : candidate id, company, title, start date, end date, duration months, is current, industry, company size, description
+- candidate education table (one row per each education degree) : candidate id, institution, degree, field of study, start year, end year, grade, tier
+- candidate skills table (one row per each skill) : candidate id, name, proficiency, endorsements, duration months
+- candidate certifications table (one row per certification) : candidate id, name, issuer, year
+- candidate languages table (one row per language) : candidate id, language, proficiency
+- candidate redrob signals table (one row per signal) : candidate id, profile completeness score, signup date, last active date, open to work flag, profile views received 30d, applications submitted 30d, recruiter response rate, avg response time hours, skill assessment scores, connection count, endorsements received, notice period days, expected min salary lpa, expected max salary lpa, preferred work mode, willing to relocate, github activity score, search appearance 30d, saved by recruiters 30d, interview completion rate, offer acceptance rate, verified email, verified phone, linkedin connected
+
+2. Capture every key details from JD requirements using LLM:
+
+* Role location
+* Work model (On-site / Remote / Hybrid)
+* Company size
+* Role details
+* Expected Professionality traits
+* Role responsibilities
+* Required exprience range (ideal and special cases)
+* Required specific domain experience and duration
+* Qualifiers:
+- Ideal skills
+- Mandatory required skills
+- Optionally required skills
+- Hands on experience on specific desired projects
+- Hands on experience on specific project stage (POC / MVP / Production)
+- Desired project scale
+- Knowledge base on specific theortical concepts and corresponding experiences from hands on work
+* Disqualifiers:
+- In terms of experience range
+- Undesired skills
+- Undesired candidate profile traits
+* Expected notice period and tolerance range
+* Number of days in office
+* Working style
+
+3. Data preparation:
+
+Candidate organizations:
+- Type of organization / firm (Product / Service / Consulting / Audit / Security oriented)
+- Orgnanization size (number of employees within organization)
+
+Candidate education institutions:
+- National ranking
+- Global ranking
+- Tier
+- Industry connections
+- Quality of courses
+
+Candidate certification issuer:
+- Issuer base location
+- Issue location
+- Issuer establishment age
+- Issuer recognition in community
+
+4. Build (FAISS / NumPy) vector databases using Embedding model on:
+- Candidate career description
+- Candidate headline
+- Candidate summary
+
+5. Build ranking model
