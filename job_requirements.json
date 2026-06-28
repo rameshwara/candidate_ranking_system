@@ -1,0 +1,20 @@
+{
+    "experience_duration": "5,9",
+    "ideal_experience_duration": "6,8",
+    "primary_experience_areas": "production experience with embeddings-based retrieval systems (sentence-transformers, OpenAI embeddings, BGE, E5, or similar), production level operational experience with vector databases or hybrid search infrastructure (Pinecone, Weaviate, Qdrant, Milvus, OpenSearch, Elasticsearch, FAISS, or similar), Strong Python, Hands-on experience designing evaluation frameworks for ranking systems (NDCG, MRR, MAP, offline-to-online correlation, A/B test interpretation), LLM fine-tuning experience (LoRA, QLoRA, PEFT), Experience with learning-to-rank models (XGBoost-based or neural)",
+    "secondary_experience_areas": "Prior exposure to HR-tech, recruiting tech, or marketplace products, Background in distributed systems or large-scale inference optimization, Open-source contributions in the AI/ML space",
+    "not_preferred_experience": "pure research experience, no production deployment exerperience, last 12 months of projects using langchain by calling openai, senior engineers without writing production code in last 18 months",
+    "education_field": "Bachelor's degree in Computer Science, Engineering, or related field; Master's degree in AI, Machine Learning, or Data Science; or equivalent professional certification (e.g., AWS Certified Machine Learning, Google Cloud Professional ML Engineer, Microsoft Azure ML Professional).",
+    "certifications": "",
+    "preferred_skills": "production experience with embeddings based retrieval system; production experience with vector databases and hybrid search infrastructure, strong python, hands on experience designing evaluation frameworks for ranking sytems, strong opinions about retrieval (hybrid vs dense), evaluation (offline vs online) and llm integration, hands-on experience with specific desired projects and stages (POC/MVP/Production)",
+    "not_preferred_skills": "consulting firm experience, primary experience in computer vision, speech or robotics without significant NLP/IR exposure",
+    "language": "English, Hindi",
+    "primary_work_location": "Pune, Noida",
+    "secondary_work_location": "Hyderabad, Mumbai, Delhi",
+    "current_job_title": "Senior AI Engineer",
+    "industry": "AI",
+    "international_candidates_consideration": true,
+    "international_relocation_support": "False",
+    "work_model": "On-site / Hybrid",
+    "notice_period": "0,30"
+}
