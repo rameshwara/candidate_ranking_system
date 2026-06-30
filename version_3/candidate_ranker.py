@@ -8,7 +8,7 @@ from json import loads, load
 from sentence_transformers import SentenceTransformer
 from llama_cpp import Llama
 from tqdm import tqdm
-from numpy import array, unique, max as np_max, mean, exp, log, argmax
+from numpy import array, unique, max as np_max, sum as np_sum, mean, exp, log, argmax
 from numpy.linalg import norm
 from pandas import DataFrame
 
@@ -20,15 +20,21 @@ class CandidateRankingSystem:
         
         start = time()
         
+        # Configure Data files
         self.candidates_data_file = candidates_data_file
         self.job_requirements_file = job_requirements_file
         
+        # Load Embedding & LLM Model files
         self.embedding_model = SentenceTransformer(embedding_model_folder, device="cpu")
         self.llm_model = Llama(model_path=llm_model_file, n_ctx=512, n_threads=cpu_count(), verbose=False)
         
         print(f"\nInitial Setup Time: {(time() - start):.2f} secs.\n")
         
     def load_candidates_data(self):
+        
+        """
+        Loads the candidates data from the .jsonl file containing 100000 candidate records.
+        """
         
         start = time()
         
@@ -41,6 +47,11 @@ class CandidateRankingSystem:
         print(f"\nLoaded Candidates Data in {(time() - start):.2f} secs.\n")
         
     def load_job_requirements(self):
+        
+        """
+        Loads the job requirements .json file and corresponding requirements defined in the given jod requirements document.
+        This file has been pre-generated using a LLM & this step is included within the ranking process.
+        """
         
         start = time()
         
@@ -99,6 +110,10 @@ Nice to have experience areas:
     
     def generate_embeddings(self, texts, batch_size=8, normalize=True, verbose=True):
         
+        """
+        Build embedding vectors batchwise for the given list of texts.
+        """
+        
         start = time()
 
         embeddings = self.embedding_model.encode(
@@ -115,6 +130,10 @@ Nice to have experience areas:
         return embeddings
     
     def cosine_similarity(self, query_embs, context_embs):
+        
+        """
+        Compute cosine similarity between 2 arrays of embedding vectors.
+        """
     
         dot_products = query_embs @ context_embs.T
         query_embs_norms = norm(query_embs, axis=1, keepdims=True)
@@ -126,15 +145,16 @@ Nice to have experience areas:
     
     def prepare_embeddings(self, potential_candidates):
         
+        """
+        Build all the required embeddings across all candidate profile parameters as required for the ranking process.
+        """
+        
         start = time()
         
         self.candidate_education_fields, self.candidate_skills, self.candidate_certifications, self.candidate_languages = [], [], [], []
-        self.candidate_titles, self.candidate_industries, self.candidate_profile_summaries, self.candidate_career_descs = [], [], [], []
+        self.candidate_titles, self.candidate_industries, self.candidate_career_descs = [], [], []
 
         for candidate in tqdm(potential_candidates, desc="Filtering unique entites: "):
-
-            for profile in candidate["profile"]:
-                self.candidate_profile_summaries.append(candidate["profile"]["summary"])
 
             for career in candidate["career_history"]:
                 self.candidate_industries.append(career["industry"])
@@ -155,13 +175,8 @@ Nice to have experience areas:
             if candidate["languages"]:
                 for language in candidate["languages"]:
                     self.candidate_languages.append(language)
-                    
-        print("\nBuilding embeddings on candidate profile summaries:")
-        self.candidate_profile_summaries = sorted(unique(self.candidate_profile_summaries).tolist())
-        self.candidate_profile_summaries_embs = self.generate_embeddings(texts=self.candidate_profile_summaries)
-        self.candidate_profile_summaries_embs = {summary: self.candidate_profile_summaries_embs[si] for si, summary in enumerate(self.candidate_profile_summaries)}
 
-        print("Building embeddings on candidate career descriptions:")
+        print("\nBuilding embeddings on candidate career descriptions:")
         self.candidate_career_descs = sorted(unique(self.candidate_career_descs).tolist())
         self.candidate_career_descs_embs = self.generate_embeddings(texts=self.candidate_career_descs)
         self.candidate_career_descs_embs = {description: self.candidate_career_descs_embs[di] for di, description in enumerate(self.candidate_career_descs)}
@@ -227,12 +242,26 @@ Nice to have experience areas:
         print(f"Total embeddings preparation time: {(time() - start):.2f} secs.\n")
         
     def profile_score(self, profile):
+        
+        """
+        Compute the candidate profile score based on:
+        
+        Candidate's:
+        * Current title
+        * Current industry
+        * Years of experience
+        
+        Preferred (as per JD):
+        * Years of experience
+        * Preferred current titles
+        * Preferred industry
+        
+        Undesired job titles (as per JD)
+        """
     
-        summary = profile["summary"]
         current_title, current_industry = profile["current_title"], profile["current_industry"]
         experience_years = profile["years_of_experience"]
 
-        summary_emb = self.candidate_profile_summaries_embs[summary].reshape(1, -1)
         current_title_emb = self.candidate_title_embs[current_title].reshape(1, -1)
         current_industry_emb = self.candidate_industries_embs[current_industry].reshape(1, -1)
 
@@ -241,18 +270,46 @@ Nice to have experience areas:
         current_industry_score = np_max(self.cosine_similarity(current_industry_emb, self.preferred_industry_embs)[0])
         current_title_irrelevance = 1 - np_max(self.cosine_similarity(current_title_emb, self.undesired_title_embs)[0])
 
-        desired_exp_score = np_max(self.cosine_similarity(summary_emb, self.desired_experience_embs)[0])
-        nice_exp_score = np_max(self.cosine_similarity(summary_emb, self.nice_experience_embs)[0])
-        undesired_exp_score = 1 - np_max(self.cosine_similarity(summary_emb, self.undesired_experience_embs)[0])
-
-        return mean([experience_years_score, current_title_score, current_industry_score, current_title_irrelevance, desired_exp_score, nice_exp_score, undesired_exp_score])
+        # Weightage of years of experience > current industry > current title > irrelevance of current title
+        score = (0.4 * experience_years_score) + (0.3 * current_industry_score) + (0.2 * current_title_score) + (0.1 * current_title_irrelevance)
+        
+        return score
 
     def career_score(self, career):
+        
+        """
+        Compute the candidate career history score based on:
+        
+        Candidate's:
+        * Career role title
+        * Career role description
+        * Career role industry
+        * Career role duration
+        * When career role is current or not
+        
+        &
+        
+        Preferred (as per JD):
+        * Experience areas
+        * Job titles
+        * Industry
+        
+        Along with:
+        * Nice to have experience areas
+        * Undesired experience areas
+        * Undesired job titles
+        """
 
         scores = []
         relevant_experience_yrs = 0
         current_exp = []
         relevant_careers = []
+        
+        def get_weight(param, value):
+            # Sets non-linear weights based on candidate's career role duration with a room to provide higher saturating weights when it exceeds the desired requirement
+            references = {"duration": 3}
+            weight = 1 - exp(-value * log(10) / references[param])
+            return weight
 
         for role in career:
 
@@ -271,22 +328,36 @@ Nice to have experience areas:
             current_industry_emb = self.candidate_industries_embs[role_industry] .reshape(1, -1)       
             current_industry_score = np_max(self.cosine_similarity(current_industry_emb, self.preferred_industry_embs)[0])
 
-            role_score = mean([desired_exp_score, nice_exp_score, undesired_exp_score, current_title_score, current_industry_score])
+            # Weightage of relevant desired experience areas > relevant nice to have experience areas == industry > title > undesired experience areas
+            role_score = (0.4 * desired_exp_score) + (0.2 * nice_exp_score) + (0.2 * current_industry_score) + (0.15 * current_title_score) + (0.05 * undesired_exp_score)
+            # Factor in the career role duration
+            role_score = (0.7 * role_score) + (0.3 * get_weight("duration", role_duration))
+            # Boost career role specific relevance score only if it is a current role and has a relevant current title
+            if is_current and (current_title_score > 0.8):
+                role_score = min(role_score * 1.1, 1.)
+            
             scores.append(role_score), current_exp.append(is_current)
             
+            # Accumulate career role details only if has relecant current title, current industry or desired experience for reasoning with LLM later
             if (current_title_score >= 0.8) or (current_industry_score >= 0.75) or (desired_exp_score >= 0.9):
-#                 relevant_careers.append(f"Job role: {role_title} | Duration (in months): {role_duration}\nSummary: {role_description}")
                 relevant_careers.append(f"Job role: {role_title} | Duration (in months): {role_duration}\nIndustry: {role_industry}")
 
-        return mean(scores), relevant_careers
+        return mean(scores) if scores else 0., relevant_careers
 
     def education_score(self, education, min_relevance=0.8):
+        
+        """
+        Compute candidate education score based on:
+        * Candidate's most recent education degree
+        * Preferred education degrees
+        """
 
         relevant_educations = []
         
         if education:
             last_end_year = 0
             for edu in education:
+                # Score is being calculated purely based on most recent education degree and its relevance
                 if edu["end_year"] > last_end_year:
                     education_degree_emb = self.candidate_education_embs[f"{edu['degree']}, {edu['field_of_study']}"].reshape(1, -1)
                     education_score = np_max(self.cosine_similarity(education_degree_emb, self.preferred_education_embs)[0])
@@ -297,10 +368,29 @@ Nice to have experience areas:
 
         return education_score, relevant_educations
 
-    def skills_score(self, skills, min_relevance=0.9):
+    def skills_score(self, skills, min_relevance=0.8):
+        
+        """
+        Compute candidate's skills score based on:
+        
+        Candidate's:
+        * Skill name
+        * Skill proficiency
+        * Skill duration
+        * Skill endorsements
+        
+        Preferred (as per JD):
+        * Primary / Desired / Expected skills and their durations
+        * Secondary / Optional / Nice to have skills and their durations
+        """
 
         def get_weight(param, value):
-            references = {"endorsements": 200, "duration": 3}
+            # Sets non-linear weights based on candidate's skill endorsements, skill duration, required / primary skills coverage and optional / secondary skills coverage with a room to provide higher saturating weights when each exceeds the desired requirement.
+            references = {
+                "endorsements": 10, "duration": 3, 
+                "primary_skill_coverage": len(self.preferred_primary_skill_names),
+                "secondary_skill_coverage": len(self.preferred_secondary_skill_names)
+            }
             weight = 1 - exp(-value * log(10) / references[param])
             return weight
 
@@ -308,6 +398,7 @@ Nice to have experience areas:
         relevant_primary_skills = {skill: 0 for skill in self.preferred_primary_skill_names}
         relevant_secondary_skills = {skill: 0 for skill in self.preferred_secondary_skill_names}
 
+        # Configure weights for skill proficiency
         skill_proficiency_weights = {"beginner": 0.25, "intermediate": 0.5, "advanced": 0.75, "expert": 1.}
 
         for skill in skills:
@@ -328,36 +419,39 @@ Nice to have experience areas:
             matched_secondary_skill_score = secondary_skill_scores[secondary_skill_score_idx]
             
             if (matched_primary_skill_score >= min_relevance) or (matched_secondary_skill_score >= min_relevance):
-#                 relevant_skills.append(f"{name} ({proficiency})")
-                relevant_skills.append(name)
+                relevant_skills.append(f"{name} ({proficiency})")
 
             if matched_primary_skill_score >= matched_secondary_skill_score:
-                matched_primary_skill_score *= skill_proficiency_weights[proficiency] * get_weight("endorsements", endorsements)
                 required_skill_duration = self.primary_skills_meta[matched_preferred_primary_skill]["min_months"] / 12
-                matched_primary_skill_score = mean([matched_primary_skill_score, get_weight("duration", required_skill_duration)])
+                skill_prominence = (0.2 * get_weight("endorsements", endorsements)) + (0.3 * get_weight("duration", required_skill_duration)) + (0.5 * skill_proficiency_weights[proficiency])
+                matched_primary_skill_score = (0.7 * matched_primary_skill_score) + (0.3 * skill_prominence)
                 if matched_primary_skill_score > relevant_primary_skills[matched_preferred_primary_skill]:
                     relevant_primary_skills[matched_preferred_primary_skill] = matched_primary_skill_score
             else:
-                matched_secondary_skill_score *= skill_proficiency_weights[proficiency] * get_weight("endorsements", endorsements)
                 required_skill_duration = self.secondary_skills_meta[matched_preferred_secondary_skill]["min_months"] / 12
-                matched_secondary_skill_score = mean([matched_secondary_skill_score, get_weight("duration", required_skill_duration)])
+                skill_prominence = (0.2 * get_weight("endorsements", endorsements)) + (0.3 * get_weight("duration", required_skill_duration)) + (0.5 * skill_proficiency_weights[proficiency])
+                matched_secondary_skill_score = (0.7 * matched_secondary_skill_score) + (0.3 * skill_prominence)
                 if matched_secondary_skill_score > relevant_secondary_skills[matched_preferred_secondary_skill]:
                     relevant_secondary_skills[matched_preferred_secondary_skill] = matched_secondary_skill_score
 
         existing_primary_skills = [value for value in relevant_primary_skills.values() if value > 0]
         existing_secondary_skills = [value for value in relevant_secondary_skills.values() if value > 0]
 
-        number_of_required_skills_weight = len(existing_primary_skills) / len(self.preferred_primary_skill_names)
-        number_of_optional_skills_weight = len(existing_secondary_skills) / len(self.preferred_secondary_skill_names)
-
-        primary_skill_score = (mean(existing_primary_skills) * number_of_required_skills_weight) if existing_primary_skills else 0.
-        secondary_skill_score = (mean(existing_secondary_skills) * number_of_optional_skills_weight) if existing_secondary_skills else 0.
-        final_skill_score = mean([primary_skill_score, secondary_skill_score]) 
+        primary_skill_score = (0.55 * mean(existing_primary_skills)) + (0.45 * get_weight("primary_skill_coverage", len(existing_primary_skills))) if existing_primary_skills else 0.
+        secondary_skill_score = (0.55 * mean(existing_secondary_skills)) + (0.45 * get_weight("secondary_skill_coverage", len(existing_secondary_skills))) if existing_secondary_skills else 0.
+        final_skill_score = (0.7 * primary_skill_score) + (0.3 * secondary_skill_score) 
 
         return final_skill_score, relevant_skills
 
     def language_score(self, languages):
+        
+        """
+        Compute candidate's language score based on:
+        * Preferred languages and proficiency as per JD
+        * Candidate's languages and proficiency
+        """
 
+        # Configure weights for language proficiency
         language_weights = {"conversational": 0.5, "professional": 0.75, "native": 1.}
 
         scores = []
@@ -369,9 +463,13 @@ Nice to have experience areas:
         return mean(scores) if scores else 0.
 
     def redrob_signal_score(self, redrob_signals):
+        
+        """
+        Compute candidate's redrob signals score based on the available redrob signals to influence final recommendations
+        """
 
         def get_weight(param, value, proportionality):
-
+            # Sets non-linear weights based on candidate's redrob signals such as applications submitted in last 30 days (higher value indicates candidate is actively looking for a new job role), profile views received in last 30 days (higher value indicates the candidate's activity on redrob resulting into profile views), average response time to messages (lower the better for quick decision making by hiring managers), connection count (higher the better for relevance of the profile and networking), endorsements received (higher the better for authenticity of the expertise) and saved by recruiters in last 30 days (higher the better again indicating the popularity among the hiring managers) with a room to provide higher saturating weights when each exceeds the desired requirement. Only average response time gets higher weight for lower values.
             references = {
                 "applications_submitted_30d": 22,
                 "profile_views_received_30d": 374,
@@ -411,6 +509,10 @@ Nice to have experience areas:
         return mean(scores)
     
     def run_llm_inference(self, system_prompt, user_prompt, max_tokens=64, temperature=0.15, topP=0.99):
+        
+        """
+        Run LLM model inference for generating reasons to recommend a candidate
+        """
 
         response = self.llm_model.create_chat_completion(
             messages=[
@@ -421,11 +523,17 @@ Nice to have experience areas:
         )
         response_text = response["choices"][0]["message"]["content"]
         
-#         print('\n', response["usage"], '\n', response_text, '\n')
-        
         return response_text
     
     def generate_reasons(self, profile_summary, relevant_educations, relevant_careers, relevant_skills):
+        
+        """
+        Generate reason for recommending a candidate based on the candidate's:
+        * Relevant career histories if available
+        * Relevant education degrees if available
+        * Relevant skills if available
+        * Profile summary if none of the above are available
+        """
         
         career_description = "; ".join([career for career in relevant_careers])
         education = "; ".join([degree for degree in relevant_educations])
@@ -466,6 +574,13 @@ Generate a reason to consider this profile by using < 15 words in plain text.
     
     def rank_candidates(self, topK=100):
         
+        """
+        1. Perform candidate profile relevance check for the job role.
+        2. Rank them based on the various profile section specific scores.
+        3. Generate reasons for recommending a candidate only for top 100 (configurable) candidates.
+        4. Save the recommendations into a data frame.
+        """
+        
         main_start = time()
         start = main_start
         
@@ -490,8 +605,7 @@ Generate a reason to consider this profile by using < 15 words in plain text.
         self.prepare_embeddings(potential_candidates)
         
         scored_candidates = []
-        scored_candidates_headers = ["candidate_id", "rank", "score", "reasoning"]
-
+        
         for candidate in tqdm(potential_candidates, desc="Ranking Potential Candidates: "):
 
             candidate_id = candidate["candidate_id"]
@@ -507,19 +621,23 @@ Generate a reason to consider this profile by using < 15 words in plain text.
             cscore, relevant_careers = self.career_score(career)
             sscore, relevant_skills = self.skills_score(skills)
             
-            candidate_score = (0.2 * pscore) + (0.4 * cscore) + (0.2 * sscore) + (0.1 * escore) + (0.05 * lscore) + (0.05 * rscore)
+            candidate_score = (0.25 * pscore) + (0.4 * cscore) + (0.15 * sscore) + (0.1 * escore) + (0.05 * lscore) + (0.05 * rscore)
 
-            scored_candidates.append([candidate_id, relevant_educations, relevant_careers, relevant_skills, candidate_score])
+            scored_candidates.append([candidate_id, relevant_educations, relevant_careers, relevant_skills, candidate_score, pscore, cscore, sscore, escore, rscore, lscore])
             
         print()
-        scored_candidates = sorted(scored_candidates, key=lambda x: float(x[-1]), reverse=True)[:topK]
+        scored_candidates = sorted(scored_candidates, key=lambda x: float(x[-7]), reverse=True)[:topK]
         for ci, candidate in enumerate(tqdm(scored_candidates, desc="Generating Ranking Reasons: ")):
-            candidate_id, relevant_educations, relevant_careers, relevant_skills, candidate_score = candidate
+            candidate_id, relevant_educations, relevant_careers, relevant_skills, candidate_score, pscore, cscore, sscore, escore, rscore, lscore = candidate
             ranking_reason = self.generate_reasons(profile["summary"], relevant_educations, relevant_careers, relevant_skills)
             scored_candidates[ci] = [candidate_id, ci+1, candidate_score, ranking_reason]
 
+        scored_candidates_headers = ["candidate_id", "rank", "score", "reasoning"]
         scored_candidates_df = DataFrame(scored_candidates, columns=scored_candidates_headers)
-        scored_candidates_df.to_csv("candidate_recommendations.csv", index=False)
+        
+        out_file_name = "candidate_recommendations"
+        scored_candidates_df.to_csv(f"./data/{out_file_name}.csv", index=False)
+        scored_candidates_df.to_excel(f"./data/{out_file_name}.xlsx", index=False)
         
         print(f"\nTotal candidates ranking time: {(time() - main_start):.2f} secs.\n")
         
@@ -527,12 +645,12 @@ if __name__ == "__main__":
     
     candidates_ranker = CandidateRankingSystem(
         candidates_data_file="./data/candidates.jsonl",
-        job_requirements_file="./data/job_requirements.json",
+        job_requirements_file="./job_requirements.json",
         embedding_model_folder="./models/BGE-embed/BAAI/bge-small-en-v1.5",
         llm_model_file="./models/Qwen-GGUF/Qwen3-0.6B-Q4_K_M.gguf"
     )
     
     candidates_ranker.rank_candidates(topK=100)
     
-    print(f"End to end processing time: {(time() - import_time):.2f} secs.\n")
+    print(f"End to end execution time: {(time() - import_time):.2f} secs.\n")
     
