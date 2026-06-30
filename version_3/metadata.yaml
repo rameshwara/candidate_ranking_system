@@ -1,0 +1,67 @@
+
+# ============================================================================
+# Team identity
+# ============================================================================
+team_name: "AI strivers BMSCE"  # Used in leaderboard and announcements
+
+primary_contact:
+  name: "Thippeswamy H U"
+  email: "thippu.swamyhu@gmail.com"   # Used for all organizer communication
+  phone: "+91-9036684038"        # Used for top-50 / top-10 outreach
+
+team_members:
+  - name: "Rameshwara G N"
+    email: "gnrameshwara@gmail.com"
+ 
+  - name: "Thippeswamy H U"
+    email: "thippu.swamyhu@gmail.com"
+
+
+# ============================================================================
+# Code and reproducibility
+# ============================================================================
+github_repo: "https://github.com/rameshwara/candidate_ranking_system/tree/main/version_3"
+
+Docker pull command: docker run thippeswamyhu/redrob-ranker:v1
+
+# Before executing this run command the add data folder with "candidates.jsonl" and "job_requirements.json"(this file is available in the git) files
+# Example path for execution: if you are in this path "E:\IndiaRuns\hackathon\data>" run command in "E:\IndiaRuns\hackathon>" path.
+
+Docker run command: docker run --rm -v "./data:/data" redrob-ranker:v1
+
+# After execution of run command "candidate_recommendations.csv" will be generated in data folder
+# Example "E:\IndiaRuns\hackathon\data>" in this path it will be generated. 
+
+
+# ============================================================================
+# Compute environment
+# ============================================================================
+compute:
+  platform: "Dell"                    		# Or: "AWS EC2 c5.4xlarge", "Local Linux box", etc.
+  cpu_cores: i7                                 # Number of CPU cores used
+  ram_gb: 8                                     # Available RAM in GB
+  python_version: "3.10"                        # python --version
+  os: "Windows10"                               # Or "Ubuntu 22.04 LTS", etc.
+  uses_gpu_for_inference: false                 # Must be false — see compute constraints
+  has_network_during_ranking: false             # Must be false — no API calls during ranking
+  pre_computation_required: false               # true if you pre-compute embeddings or train models offline
+  pre_computation_time_minutes: 0               # Approximate, if applicable
+
+# ============================================================================
+# AI tools declaration
+# ============================================================================
+
+ai_tools_used:
+  - "ChatGPT" 
+
+ai_usage_summary: |
+ - Used ChatGPT for syntax correction,Job description conversion from doc to json and issue fixing. 
+# ============================================================================
+# Declarations
+# ============================================================================
+declarations:
+  read_submission_spec: true        # I have read submission_spec.md in full
+  code_is_original_work: true       # My code is my team's original work (using AI as a tool is fine)
+  no_collusion: true                # I have not coordinated my submission with other teams
+  honeypot_check_done: false        # OPTIONAL — set true if you explicitly checked for honeypots in your ranking
+  reproduction_tested: true         # I have tested that my reproduce_command runs end-to-end
