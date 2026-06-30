@@ -1,6 +1,10 @@
 # candidate_ranking_system
 Candidate ranking &amp; recommendation system for modern recruiting platforms
 
+**Instructions:-**
+
+Please use version_3 folder details it is the latest one and also check metadata.yaml file which is present in it. 
+
 If you wanted to generate the top 100 candidates based on JD please follow below steps:
 
 **Step1:-**
