@@ -11,7 +11,7 @@ If you wanted to generate the top 100 candidates based on JD please follow below
 
 Pull docker image using below command
 
-**_Command:_** "docker run thippeswamyhu/redrob-ranker:v1"
+**_Command:_** "docker pull thippeswamyhu/redrob-ranker:v1"
 
 **Step2:-**
 
