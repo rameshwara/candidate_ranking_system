@@ -27,7 +27,7 @@ Docker pull command: docker pull thippeswamyhu/redrob-ranker:v1
 # Before executing this run command the add data folder with "candidates.jsonl" and "job_requirements.json"(this file is available in the git) files
 # Example path for execution: if you are in this path "E:\IndiaRuns\hackathon\data>" run command in "E:\IndiaRuns\hackathon>" path.
 
-Docker run command: docker run --rm -v "./data:/data" redrob-ranker:v1
+Docker run command: docker run --rm -v "./data:/data" thippeswamyhu/redrob-ranker:v1
 
 # After execution of run command "candidate_recommendations.csv" and candidate_recommendations.xlsx file will be genrated in data folder. (Reason for generating .xlsx file is in the submission portal it is accepting only .xlsx file)
 # Example "E:\IndiaRuns\hackathon\data>" in this path it will be generated. 
