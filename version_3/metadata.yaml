@@ -22,7 +22,7 @@ team_members:
 # ============================================================================
 github_repo: "https://github.com/rameshwara/candidate_ranking_system/tree/main/version_3"
 
-Docker pull command: docker run thippeswamyhu/redrob-ranker:v1
+Docker pull command: docker pull thippeswamyhu/redrob-ranker:v1
 
 # Before executing this run command the add data folder with "candidates.jsonl" and "job_requirements.json"(this file is available in the git) files
 # Example path for execution: if you are in this path "E:\IndiaRuns\hackathon\data>" run command in "E:\IndiaRuns\hackathon>" path.
