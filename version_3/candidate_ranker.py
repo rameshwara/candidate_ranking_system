@@ -16,13 +16,14 @@ print(f"\nModules import time: {(time() - import_time):.2f} secs.\n")
 
 class CandidateRankingSystem:
 
-    def __init__(self, candidates_data_file, job_requirements_file, embedding_model_folder, llm_model_file):
+    def __init__(self, candidates_data_file, job_requirements_file, embedding_model_folder, llm_model_file, honeypot_candidates=[]):
         
         start = time()
         
         # Configure Data files
         self.candidates_data_file = candidates_data_file
         self.job_requirements_file = job_requirements_file
+        self.honeypot_candidates = honeypot_candidates
         
         # Load Embedding & LLM Model files
         self.embedding_model = SentenceTransformer(embedding_model_folder, device="cpu")
@@ -340,7 +341,7 @@ Nice to have experience areas:
             
             # Accumulate career role details only if has relecant current title, current industry or desired experience for reasoning with LLM later
             if (current_title_score >= 0.8) or (current_industry_score >= 0.75) or (desired_exp_score >= 0.9):
-                relevant_careers.append(f"Job role: {role_title} | Duration (in months): {role_duration}\nIndustry: {role_industry}")
+                relevant_careers.append(f"Job role: {role_title} | Industry: {role_industry}")
 
         return mean(scores) if scores else 0., relevant_careers
 
@@ -504,7 +505,8 @@ Nice to have experience areas:
             proportionality = "inverse" if signal == "avg_response_time_hours" else "direct"
             scores.append(get_weight(signal, redrob_signals[signal], proportionality))
 
-        scores.append(int(redrob_signals["open_to_work_flag"]))
+        for additional_signal in ["open_to_work_flag", "verified_email", "verified_phone", "linkedin_connected"]:
+            scores.append(int(redrob_signals[additional_signal]))
 
         return mean(scores)
     
@@ -525,7 +527,7 @@ Nice to have experience areas:
         
         return response_text
     
-    def generate_reasons(self, profile_summary, relevant_educations, relevant_careers, relevant_skills):
+    def generate_reasons(self, candidate_rank, profile_summary, total_experience, relevant_educations, relevant_careers, relevant_skills):
         
         """
         Generate reason for recommending a candidate based on the candidate's:
@@ -536,7 +538,7 @@ Nice to have experience areas:
         """
         
         career_description = "; ".join([career for career in relevant_careers])
-        education = "; ".join([degree for degree in relevant_educations])
+        education = "; ".join([degree for degree in relevant_educations[:2]])
         skills = ", ".join([skill for skill in relevant_skills])
         
         career_profile_details = ""
@@ -548,20 +550,21 @@ Nice to have experience areas:
             career_profile_details += f"\n\nSkills Set:\n{skills}"
         if not career_profile_details:
             career_profile_details = f"Profile summary:\n{profile_summary}\n" + career_profile_details
+        career_profile_details = f"Total experience: {total_experience} years.\n" + career_profile_details
         
         system_prompt = f"""
 /no_think
-Given a candidate profile details for a Senior AI Engineer role, provide a valid reason based on these details in a single short sentence of maximum 15 words only to consider the candidate profile for the job role.
+Given a candidate profile details for a Senior AI Engineer role, provide a valid reason based on only these details in single short sentence of max 15 words to consider this profile for the job role.
 /no_think
 """
         
         user_prompt = f"""
 /no_think
-Here are all the details of a candidate profile:
+Here is a candidate profile ranked {candidate_rank} within top 100 candidates list:
 ```
 {career_profile_details}
 ```
-Generate a reason to consider this profile by using < 15 words in plain text.
+Generate a reason to consider this profile using < 15 words in plain text.
 /no_think
 """
             
@@ -609,6 +612,11 @@ Generate a reason to consider this profile by using < 15 words in plain text.
         for candidate in tqdm(potential_candidates, desc="Ranking Potential Candidates: "):
 
             candidate_id = candidate["candidate_id"]
+                                    
+            # Filter out honeypot candidates if provided
+            if self.honeypot_candidates and (candidate_id in self.honeypot_candidates):
+                continue
+                                    
             profile, career, education = candidate["profile"], candidate["career_history"], candidate["education"]
             skills, certifications, languages = candidate["skills"], candidate["certifications"], candidate["languages"]
             redrob_signals = candidate["redrob_signals"]
@@ -623,31 +631,45 @@ Generate a reason to consider this profile by using < 15 words in plain text.
             
             candidate_score = (0.25 * pscore) + (0.4 * cscore) + (0.15 * sscore) + (0.1 * escore) + (0.05 * lscore) + (0.05 * rscore)
 
-            scored_candidates.append([candidate_id, relevant_educations, relevant_careers, relevant_skills, candidate_score, pscore, cscore, sscore, escore, rscore, lscore])
+            scored_candidates.append([candidate_id, profile, relevant_educations, relevant_careers, relevant_skills, candidate_score, pscore, cscore, sscore, escore, rscore, lscore])
             
         print()
         scored_candidates = sorted(scored_candidates, key=lambda x: float(x[-7]), reverse=True)[:topK]
         for ci, candidate in enumerate(tqdm(scored_candidates, desc="Generating Ranking Reasons: ")):
-            candidate_id, relevant_educations, relevant_careers, relevant_skills, candidate_score, pscore, cscore, sscore, escore, rscore, lscore = candidate
-            ranking_reason = self.generate_reasons(profile["summary"], relevant_educations, relevant_careers, relevant_skills)
+            candidate_id, profile, relevant_educations, relevant_careers, relevant_skills, candidate_score, pscore, cscore, sscore, escore, rscore, lscore = candidate
+            ranking_reason = self.generate_reasons(ci+1, profile["summary"], profile["years_of_experience"], relevant_educations, relevant_careers, relevant_skills)
             scored_candidates[ci] = [candidate_id, ci+1, candidate_score, ranking_reason]
 
         scored_candidates_headers = ["candidate_id", "rank", "score", "reasoning"]
         scored_candidates_df = DataFrame(scored_candidates, columns=scored_candidates_headers)
         
-        out_file_name = "candidate_recommendations"
-        scored_candidates_df.to_csv(f"./data/{out_file_name}.csv", index=False)
+        out_file_name = "team_AIStriversBMSCE"
+        scored_candidates_df.to_csv(f"./data/{out_file_name}.csv", index=False, encoding="utf-8")
         scored_candidates_df.to_excel(f"./data/{out_file_name}.xlsx", index=False)
         
         print(f"\nTotal candidates ranking time: {(time() - main_start):.2f} secs.\n")
         
 if __name__ == "__main__":
     
+    honeypot_candidates = [
+        'CAND_0003430', 'CAND_0003582', 'CAND_0005291', 'CAND_0007413', 'CAND_0008978', 'CAND_0010770', 'CAND_0011125', 
+        'CAND_0012837', 'CAND_0013536', 'CAND_0016000', 'CAND_0016678', 'CAND_0024752', 'CAND_0025579', 'CAND_0030946', 
+        'CAND_0032996', 'CAND_0033131', 'CAND_0033817', 'CAND_0033972', 'CAND_0036299', 'CAND_0036839', 'CAND_0038431', 
+        'CAND_0039754', 'CAND_0040955', 'CAND_0042245', 'CAND_0044252', 'CAND_0046649', 'CAND_0046689', 'CAND_0048740', 
+        'CAND_0050553', 'CAND_0050876', 'CAND_0052478', 'CAND_0053527', 'CAND_0055792', 'CAND_0055992', 'CAND_0056983', 
+        'CAND_0057529', 'CAND_0060072', 'CAND_0060642', 'CAND_0061265', 'CAND_0061722', 'CAND_0063888', 'CAND_0064256', 
+        'CAND_0065096', 'CAND_0066405', 'CAND_0067443', 'CAND_0067535', 'CAND_0070429', 'CAND_0071115', 'CAND_0072379', 
+        'CAND_0073504', 'CAND_0073853', 'CAND_0074119', 'CAND_0074735', 'CAND_0077250', 'CAND_0078042', 'CAND_0080102', 
+        'CAND_0080291', 'CAND_0086808', 'CAND_0088354', 'CAND_0090900', 'CAND_0091068', 'CAND_0091534', 'CAND_0093331', 
+        'CAND_0094482', 'CAND_0095140', 'CAND_0095317', 'CAND_0095480', 'CAND_0095619', 'CAND_0096150', 'CAND_0098288'
+    ]
+    
     candidates_ranker = CandidateRankingSystem(
         candidates_data_file="./data/candidates.jsonl",
         job_requirements_file="./job_requirements.json",
         embedding_model_folder="./models/BGE-embed/BAAI/bge-small-en-v1.5",
-        llm_model_file="./models/Qwen-GGUF/Qwen3-0.6B-Q4_K_M.gguf"
+        llm_model_file="./models/Qwen-GGUF/Qwen3-0.6B-Q4_K_M.gguf",
+        honeypot_candidates=honeypot_candidates
     )
     
     candidates_ranker.rank_candidates(topK=100)
