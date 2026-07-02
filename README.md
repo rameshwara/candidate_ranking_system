@@ -35,7 +35,7 @@ Candidate ranking and recommendation system for modern recruiting platforms
  
    - From the root folder of the cloned git repository, execute the 'requirements.txt' using the below command:
  
-     'pip install -r requirements.txt'
+     `pip install -r requirements.txt`
 
    - This command installs all the required Python libraries needed to run the candidate ranking system.    
    
