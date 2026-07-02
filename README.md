@@ -32,8 +32,14 @@ Candidate ranking and recommendation system for modern recruiting platforms
 * *For running within your own Docker container:*
 
    - Clone the git repository inside your Docker container and navigate inside it.
+ 
+   - From the root folder of the cloned git repository, execute the 'requirements.txt' using the below command:
+ 
+     'pip install -r requirements.txt'
+
+   - This command installs all the required Python libraries needed to run the candidate ranking system.    
    
-   - From the root folder of the cloned git repository, execute the `download_hf_model_files.py` using the below command:
+   - In same path, execute the `download_hf_model_files.py` using the below command:
    
       `python -B download_hf_model_files.py`
       
