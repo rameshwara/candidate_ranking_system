@@ -10,7 +10,7 @@ Candidate ranking and recommendation system for modern recruiting platforms
 
    - Pull the required Docker image from our public repository using the below command:
        
-       `docker pull thippeswamyhu/redrob-ranker:v1`
+       `docker pull thippeswamyhu/redrob-ranker:v2`
        
    - In your current location, create a new folder named `data/` and place the below files inside it:
       - `job_requirements.json` 
@@ -21,7 +21,7 @@ Candidate ranking and recommendation system for modern recruiting platforms
       - Your sample candidates data input file - please ensure to name it `candidates.jsonl` only.
    - Now run the Docker image that has been pulled using the below command from your current location where the data folder exists:
    
-       `docker run --rm -v "./data:/data" redrob-ranker:v1`
+       `docker run --rm -v "./data:/data" thippeswamyhu/redrob-ranker:v2`
        
    - Execution logs shall be printed as soon as the container for the docker image begins to run. Wait until you see "End-to-end execution". The container shall terminate and exit upon the complete execution of the python script already loaded in it.
    
