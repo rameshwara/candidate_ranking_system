@@ -23,7 +23,7 @@ Before giving run command move back to one folder Example:if you are in this pat
 
 **Step3:-**
 
-**_Execute this command:_** "docker run --rm -v "./data:/data" redrob-ranker:v1"
+**_Execute this command:_** "docker run --rm -v "./data:/data" thippeswamyhu/redrob-ranker:v1"
 
 **Output:-**
 
